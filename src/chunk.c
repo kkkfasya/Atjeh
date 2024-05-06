@@ -14,7 +14,7 @@ void append_chunk(Chunk *chunk, uint8_t byte) {
         chunk->capacity = GROW_CAPACITY(old_capacity);
         chunk->code = (uint8_t*) chunk_realloc(chunk->code, old_capacity, chunk->capacity);
     }
-    chunk->code[chunk->used_count] = byte;
+    chunk->code[chunk->used_count] = byte; // e.g. chunk->code[0] = byte
     chunk->used_count++;
 };
 

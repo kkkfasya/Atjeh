@@ -11,7 +11,7 @@ typedef enum {
 typedef struct {
     uint8_t capacity; // number of memory that's allocated
     uint8_t used_count; // number of memory that's in use
-    uint8_t *code;
+    uint8_t *code; // byte code
 } Chunk;
 
 // TODO: maybe make init_chunk like curl_easy_init hmmm...
