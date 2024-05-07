@@ -1,5 +1,5 @@
-#ifndef atjeh_memory_h
-#define atjeh_memory_h
+#ifndef ATJEH_MEMORY_H
+#define ATJEH_MEMORY_H
 #include "common.h"
 
 #define GROW_CAPACITY(capacity) \
@@ -15,7 +15,7 @@
   Non‑zero 	    Smaller than oldSize 	  Shrink existing allocation.
   Non‑zero 	    Larger than oldSize 	  Grow existing allocation.
 */ 
-void *chunk_realloc(void *ptr, size_t old_size, size_t new_size);
+void *dynamic_realloc(void *ptr, size_t old_size, size_t new_size);
 
 
-#endif // atjeh_memory_h
+#endif // ATJEH_MEMORY_H

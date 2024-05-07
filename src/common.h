@@ -1,8 +1,8 @@
-#ifndef atjeh_common_h
-#define atjeh_common_h
+#ifndef ATJEH_COMMON_H
+#define ATJEH_COMMON_H
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#endif
+#endif // ATJEH_COMMON_H
