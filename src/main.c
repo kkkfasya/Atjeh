@@ -8,10 +8,10 @@ int main(int argc, char **argv) {
     Chunk *chunk = (Chunk*) malloc(sizeof(Chunk));
     init_chunk(chunk);
 
-    int constant = add_constant(chunk, 10.1);
-    append_chunk(chunk, OP_RETURN);
-    append_chunk(chunk, OP_CONSTANT); // operation
-    append_chunk(chunk, constant); // constant value
+    int constant = add_constant(chunk, 6.9);
+    append_chunk(chunk, OP_CONSTANT, 123); // operation
+    append_chunk(chunk, constant, 123); // constant value
+    append_chunk(chunk, OP_RETURN, 123);
     disassemble_instruction(chunk, "TEST CHUNK");
 
     free_chunk(chunk);

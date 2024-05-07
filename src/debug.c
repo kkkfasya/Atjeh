@@ -6,12 +6,17 @@
 void disassemble_instruction(Chunk *chunk, const char* name) {
     printf("================= %s =================\n", name);
     printf("-------------------------------------------------------------\n");
-    printf("OFFSET\tOP_CODE\t\tCONSTANT OFFSET\t\tCONSTANT VALUE\n");
+    printf("OFFSET\tLINE\tOP_CODE\t\tCONSTANT OFFSET\t\tCONSTANT VALUE\n");
     printf("-------------------------------------------------------------\n");
     int offset = 0;
 
     while (offset < chunk->used_count) {
         printf("%04d\t", offset); // %04d e.g will format 7 to 0007
+        if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) { // if it's in the same line
+            printf(" |\t");
+        } else {
+            printf("%4d\t", chunk->lines[offset]);
+        }
         uint8_t instruction = chunk->code[offset];
         switch (instruction) {
             case OP_RETURN:
