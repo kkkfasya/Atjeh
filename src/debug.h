@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include "chunk.h"
 
-void disassemble_instruction(Chunk *chunk, const char* name);
-
+uint8_t disassemble_instruction(Chunk *chunk, uint8_t offset);
+void disassemble_chunk(Chunk *chunk, const char *name);
 int disassemble_constant_instruction(const char *name, Chunk* chunk, int offset);
 
 
