@@ -32,7 +32,7 @@ void free_chunk(Chunk *chunk) {
     init_chunk(chunk);
 }
 
-int add_constant(Chunk *chunk, Value value) {
+uint8_t add_constant(Chunk *chunk, Value value) {
     append_value_array(&(chunk->constants), value);
     return  chunk->constants.used_count - 1; // After adding the constant, we return the index where the constant was appended so that we can locate that same constant later.
 }

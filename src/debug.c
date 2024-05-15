@@ -2,55 +2,77 @@
 #include "debug.h"
 #include "chunk.h"
 
-uint8_t disassemble_instruction(Chunk *chunk, uint8_t offset) {
-    printf("%04d\t", offset); // %04d e.g will format 7 to 0007
 
-    if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) { // if it's in the same line
-        printf(" |\t");
+uint8_t disassemble_constant_instruction(Chunk *chunk, uint8_t offset) {
+    uint8_t constant_value_offset = chunk->code[offset + 1];
+    printf("\t%04d\t\t'", constant_value_offset);
+    printf("%g", chunk->constants.values[constant_value_offset]);
+    printf("'\n");
+    return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
+}
+
+uint8_t disassemble_instruction(Chunk *chunk, uint8_t offset) {
+    printf("%04d\t", offset); // %04d e.g will format 7 to 0007, instruction offset
+    uint8_t instruction = chunk->code[offset];
+    uint8_t line = chunk->lines[offset];
+
+    // print line number
+    if (offset > 0 && line == line - 1) { // if it's in the same line
+        printf("|\t");
     } else {
-        printf("%4d\t", chunk->lines[offset]);
+        printf("%d\t", line);
     }
 
-    uint8_t instruction = chunk->code[offset];
     switch (instruction) {
+        case OP_CONSTANT:
+            printf("%-16s", "OP_CONSTANT");
+            uint8_t f = disassemble_constant_instruction(chunk, offset);
+            return f;
+
+        case OP_NEGATE:
+            printf("OP_NEGATE\n");
+            return offset + 1;
+
+        case OP_ADD:
+            printf("OP_ADD\n");
+            return offset + 1;
+
+        case OP_SUBTRACT:
+            printf("OP_SUBTRACT\n");
+            return offset + 1;
+
+        case OP_MULTIPLY:
+            printf("OP_MULTIPLY\n");
+            return offset + 1;
+
+        case OP_DIVIDE:
+            printf("OP_DIVIDE\n");
+            return offset + 1;
+
         case OP_RETURN:
             printf("OP_RETURN\n");
             return offset + 1;
-            break;
-
-        case OP_CONSTANT:
-            offset = disassemble_constant_instruction("OP_CONSTANT", chunk, offset);
-            return offset;
 
         default:
-            fprintf(stderr, "[ERROR] Unkown OP_CODE (Operation Code)\n");
+#ifdef STDERR_OUT
+            fprintf(stderr, "[LINE: %d] [ERROR] Unkown OP_CODE (Operation Code)\n", line);
+#endif
+            fprintf(stdout, "[ERROR] Unkown OP_CODE (Operation Code)\n");
             return offset + 1;
+
     }
 }
 
-void disassemble_chunk(Chunk *chunk, const char* name) {
-    printf("================= %s =================\n", name);
-    printf("-------------------------------------------------------------\n");
-    printf("OFFSET\tLINE\tOP_CODE\t\tCONSTANT OFFSET\t\tCONSTANT VALUE\n");
-    printf("-------------------------------------------------------------\n");
-    int offset = 0;
+void disassemble_chunk(Chunk *chunk, const char *name) {
+    printf("\n%38s\n", name);
+    printf("====================================================================================\n");
+    printf("OFFSET\tLINE\tOP_CODE\t\tCONSTANT_OFFSET\t\tCONSTANT_VALUE\n");
+    printf("====================================================================================\n");
 
-    while (offset < chunk->used_count) {
-        printf("%04d\t", offset); // %04d e.g will format 7 to 0007, instruction offset
+    for (int offset = 0; offset < chunk->used_count;) {
         offset = disassemble_instruction(chunk, offset);
-
-        if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) { // if it's in the same line
-            printf(" |\t");
-        } else {
-            printf("%4d\t", chunk->lines[offset]);
-        }
-    } 
+    }
 }
 
 
-int disassemble_constant_instruction(const char *name, Chunk* chunk, int offset) {
-    uint8_t constant = chunk->code[offset + 1]; // +1 for accessing next value and that value is constant (cuz current value is OP_CODE)
-    printf("%s\t%04d", name, constant);
-    printf("\t\t\t%g\n", chunk->constants.values[constant]);
-    return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
-}
+

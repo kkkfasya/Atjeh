@@ -7,6 +7,12 @@
 // One-byte operation code (OpCode)
 typedef enum {
     OP_CONSTANT, // 1 byte operation, 1 more byte to load the constant (2-byte total)
+    OP_NEGATE,
+    OP_ADD,
+    OP_SUBTRACT,
+    OP_MULTIPLY,
+    OP_DIVIDE,
+
     OP_RETURN,
 } OpCode;
 
@@ -33,7 +39,7 @@ void append_chunk(Chunk *chunk, uint8_t byte, uint8_t line);
 // After chunk is being freed, it's being initialize again
 void free_chunk(Chunk *chunk);
 
-int add_constant(Chunk *chunk, Value value);
+uint8_t add_constant(Chunk *chunk, Value value);
 
 
 #endif // ATJEH_CHUNK_H
