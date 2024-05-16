@@ -1,5 +1,5 @@
 # Desain Bahasa Pemrograman Atjeh
-###### Ekstensi file .aceh
+###### Ekstensi file .atj
 
 ## Tipe data:
 ```python
