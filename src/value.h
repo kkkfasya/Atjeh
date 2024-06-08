@@ -6,8 +6,8 @@ typedef double Value; // as in constant value e.g 1 + 2;
 
 /* Constant pool is an array of values. looks up the constant value by index in that array. */
 typedef struct {
-    uint8_t capacity;
-    uint8_t used_count;
+    uint32_t capacity;
+    uint32_t used_count;
     Value *values;
 } ValueArray; // store constant, maybe i should change it to ConstantPool
 

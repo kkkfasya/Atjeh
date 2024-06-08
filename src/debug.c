@@ -3,18 +3,18 @@
 #include "chunk.h"
 
 
-uint8_t disassemble_constant_instruction(Chunk *chunk, uint8_t offset) {
-    uint8_t constant_value_offset = chunk->code[offset + 1];
+uint32_t disassemble_constant_instruction(Chunk *chunk, uint32_t offset) {
+    uint32_t constant_value_offset = chunk->code[offset + 1];
     printf("\t%04d\t\t'", constant_value_offset);
     printf("%g", chunk->constants.values[constant_value_offset]);
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
 
-uint8_t disassemble_instruction(Chunk *chunk, uint8_t offset) {
+uint32_t disassemble_instruction(Chunk *chunk, uint32_t offset) {
     printf("%04d\t", offset); // %04d e.g will format 7 to 0007, instruction offset
-    uint8_t instruction = chunk->code[offset];
-    uint8_t line = chunk->lines[offset];
+    uint32_t instruction = chunk->code[offset];
+    uint32_t line = chunk->lines[offset];
 
     // print line number
     if (offset > 0 && line == line - 1) { // if it's in the same line
@@ -26,7 +26,7 @@ uint8_t disassemble_instruction(Chunk *chunk, uint8_t offset) {
     switch (instruction) {
         case OP_CONSTANT:
             printf("%-16s", "OP_CONSTANT");
-            uint8_t f = disassemble_constant_instruction(chunk, offset);
+            uint32_t f = disassemble_constant_instruction(chunk, offset);
             return f;
 
         case OP_NEGATE:
@@ -69,7 +69,7 @@ void disassemble_chunk(Chunk *chunk, const char *name) {
     printf("OFFSET\tLINE\tOP_CODE\t\tCONSTANT_OFFSET\t\tCONSTANT_VALUE\n");
     printf("====================================================================================\n");
 
-    for (int offset = 0; offset < chunk->used_count;) {
+    for (uint32_t offset = 0; offset < chunk->used_count;) {
         offset = disassemble_instruction(chunk, offset);
     }
 }

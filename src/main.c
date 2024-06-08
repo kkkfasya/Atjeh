@@ -18,7 +18,7 @@ static void repl() {
             break;
         }
 
-        interpret(line);
+        interpret_VM(line);
     }
 }
 
@@ -43,25 +43,22 @@ static char *read_file(const char *file_path) {
         exit(69);
     }
     buffer[bytes_read] = '\0'; // my belove null-byte
-   
+
     fclose(file);
-    return buffer; 
+    return buffer;
 }
 
 static void run_file(const char *file_path) {
-   char *source = read_file(file_path);
-   InterpretResult result = interpret(source);
-   free(source);
+    char *src = read_file(file_path);
+    InterpretResult result = interpret_VM(src);
+    free(src);
 
-   if (result == INTERPRET_COMPILE_ERROR) exit(69);
-   if (result == INTERPRET_RUNTIME_ERROR) exit(69);
+    if (result == INTERPRET_COMPILE_ERROR) exit(69);
+    if (result == INTERPRET_RUNTIME_ERROR) exit(69);
 }
 
 
 int main(int argc, char *argv[]) {
-    Chunk *chunk = (Chunk *)  malloc(sizeof(Chunk));
-    uint8_t constant;
-    init_chunk(chunk);
     init_VM();
 
     if (argc == 1) {
@@ -71,11 +68,8 @@ int main(int argc, char *argv[]) {
     } else {
         fprintf(stderr,  "[ERROR]: Usage: atjeh [file.atj]\n");
         exit(69);
-   }
-
-    disassemble_chunk(chunk, "TEST CHUNk");
-    interpret_VM(chunk);
-
+    }
+    free_VM();
 
     return 0;
 }

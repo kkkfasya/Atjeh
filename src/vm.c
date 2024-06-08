@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "common.h"
 #include "value.h"
+#include "compiler.h"
 
 
 // TODO: dynamic VM
@@ -58,10 +59,10 @@ InterpretResult run() {
     }
 
 
-    disassemble_instruction(vm.chunk, (uint8_t) (vm.ip - vm.chunk->code));
+    disassemble_instruction(vm.chunk, (uint32_t) (vm.ip - vm.chunk->code));
 #endif
 
-        uint8_t instruction;
+        uint32_t instruction;
         switch(instruction = READ_BYTE()) {
             case OP_CONSTANT: {
                 Value constant = READ_CONSTANT();
@@ -105,9 +106,22 @@ InterpretResult run() {
 #undef BINARY_OP
 }
 
-InterpretResult interpret_VM(Chunk *chunk) {
-    vm.chunk = chunk;
+InterpretResult interpret_VM(const char *src) {
+    Chunk chunk;
+    init_chunk(&chunk);
+    /* We create a new empty chunk and pass it over to the compiler
+     * The compiler will take the user’s program and fill up the chunk with bytecode */
+    if (!compile(src, &chunk)) {
+        free_chunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+    vm.chunk = &chunk;
     vm.ip = vm.chunk->code;
 
-    return run();
+    InterpretResult result = run();
+    free_chunk(&chunk);
+    return result;
 }
+
+
+
