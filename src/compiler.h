@@ -35,33 +35,9 @@ typedef struct {
 
 
 /* One-pass compiler*/
+// bool compile(const char *src, Chunk *chunk);
 bool compile(const char *src, Chunk *chunk);
-/*  NOTE: Below should be static function, but i didn't make it so because 
- *  i need to keep track of it */ 
-void parse_token();
-void error(Token *token, const char *msg);
 
-/* if @param is_current is true, the current token is error,
- * if it's false then it's the previous token */
-void error_at(const char *msg, bool is_current);
-
-void consume_token(TokenType type, const char *msg);
-void emit_byte(uint8_t byte);
-void emit_bytes(uint8_t byte1, uint8_t byte2);
-
-Chunk *current_chunk();
-void expression();
-void emit_return();
-void end_compile();
-uint8_t make_constant(Value value);
-void emit_constant(Value constant);
-
-void parse_constant();
-void paren_grouping();
-void parse_unary();
-void parse_binary_op();
-void expression();
-ParseRule* get_rule(TokenType type);
-void parse_precedence(Precedence precedence);
+ParseRule *get_rule(TokenType type);
 
 #endif // ATJEH_COMPILER_H

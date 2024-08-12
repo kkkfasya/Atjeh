@@ -3,30 +3,29 @@
 #include "chunk.h"
 
 
-uint32_t disassemble_constant_instruction(Chunk *chunk, uint32_t offset) {
-    uint32_t constant_value_offset = chunk->code[offset + 1];
+int disassemble_constant_instruction(Chunk *chunk, int offset) {
+    uint8_t constant_value_offset = chunk->code[offset + 1];
     printf("\t%04d\t\t'", constant_value_offset);
     printf("%g", chunk->constants.values[constant_value_offset]);
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
 
-uint32_t disassemble_instruction(Chunk *chunk, uint32_t offset) {
+int disassemble_instruction(Chunk *chunk, int offset) {
     printf("%04d\t", offset); // %04d e.g will format 7 to 0007, instruction offset
-    uint32_t instruction = chunk->code[offset];
-    uint32_t line = chunk->lines[offset];
+    int instruction = chunk->code[offset];
 
     // print line number
-    if (offset > 0 && line == line - 1) { // if it's in the same line
+    if (offset > 0 && offset == offset - 1) { // if it's in the same line
         printf("|\t");
     } else {
-        printf("%d\t", line);
+        printf("%d\t", offset);
     }
 
     switch (instruction) {
         case OP_CONSTANT:
             printf("%-16s", "OP_CONSTANT");
-            uint32_t f = disassemble_constant_instruction(chunk, offset);
+            int f = disassemble_constant_instruction(chunk, offset);
             return f;
 
         case OP_NEGATE:
@@ -54,10 +53,7 @@ uint32_t disassemble_instruction(Chunk *chunk, uint32_t offset) {
             return offset + 1;
 
         default:
-#ifdef STDERR_OUT
-            fprintf(stderr, "[LINE: %d] [ERROR] Unkown OP_CODE (Operation Code)\n", line);
-#endif
-            fprintf(stdout, "[ERROR] Unkown OP_CODE (Operation Code)\n");
+            fprintf(stderr, "[ERROR] Unkown OP_CODE (Operation Code)\n");
             return offset + 1;
 
     }
@@ -69,7 +65,7 @@ void disassemble_chunk(Chunk *chunk, const char *name) {
     printf("OFFSET\tLINE\tOP_CODE\t\tCONSTANT_OFFSET\t\tCONSTANT_VALUE\n");
     printf("====================================================================================\n");
 
-    for (uint32_t offset = 0; offset < chunk->used_count;) {
+    for (int offset = 0; offset < chunk->used_count;) {
         offset = disassemble_instruction(chunk, offset);
     }
 }

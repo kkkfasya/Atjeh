@@ -8,7 +8,7 @@
 typedef struct {
   const char *start; // point to the beginning of lexeme (fancy ahh name for word)
   const char *current; // point to current char that's scanned
-  uint32_t line;
+  int line;
 } Scanner;
 
 typedef enum {
@@ -38,26 +38,12 @@ typedef enum {
 typedef struct {
   TokenType type; // type of token
   const char *start; //
-  uint32_t length;
-  uint32_t line;
+  int length;
+  int line;
 } Token;
 
 Token scan_token();
 void init_scanner(const char *src);
-
-/*  NOTE: Below should be static function, but i didn't make it static because
- *  i need to keep track of it */
-Token parse_string_literal();
-bool is_eof();
-char next_char();
-char peek();
-char peek_next();
-bool match(char expected);
-TokenType check_keyword(int start, int length, const char *rest, TokenType type);
-TokenType identifier_type();
-Token make_token(TokenType type);
-Token error_token(const char *msg);
-void skip_whitespace();
 
 #endif // ATJEH_SCANNER_H
 

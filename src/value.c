@@ -5,25 +5,28 @@
 
 
 void init_value_array(ValueArray *array) {
+    array->values = NULL;
     array->capacity = 0;
     array->used_count = 0;
-    array->values = NULL;
 }
 
 void append_value_array(ValueArray *array, Value value) {
-    if (array->capacity < array->used_count + 1) { // capacity not enough so we extend it
-        int old_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(old_capacity);
-        array->values = (Value *) dynamic_realloc(array->values, old_capacity, array->capacity);
+    if (array->capacity < array->used_count + 1) {
+        int old_cap = array->capacity;
+        array->capacity = GROW_CAPACITY(old_cap);
+        array->values = GROW_ARRAY(Value, array->values, old_cap, array->capacity);
     }
-    array->values[array->used_count] = value; // e.g. array->code[0] = byte
+    array->values[array->used_count] = value;
     array->used_count++;
 };
 
 void free_value_array(ValueArray *array) {
-    free(array->values);
-    array->values = NULL;
+    FREE_ARRAY(Value, array->values, array->capacity);
     init_value_array(array);
+}
+
+void print_value(Value value) {
+    printf("%g", value);
 }
 
 

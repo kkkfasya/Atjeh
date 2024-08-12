@@ -7,8 +7,8 @@
 #include "compiler.h"
 
 
-// TODO: dynamic VM
-VM vm; // i only need 1 VM so instead of passing pointer here and there i just make a global variable
+// TODO: dynamic VM, maybe...
+VM vm; // i only need 1 VM so instead of passing pointer here and there, just make a global variable
 
 static void reset_stack() {
     vm.stack_top = vm.stack;
@@ -33,7 +33,7 @@ Value pop() {
 }
 
 
-InterpretResult run() {
+static InterpretResult run() {
 #define READ_BYTE() (*vm.ip++)
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 #define BINARY_OP(op) \
@@ -45,7 +45,7 @@ InterpretResult run() {
 
     while (1) {
 #ifdef DEBUG_TRACE_EXECUTION
-    Value stack_debug[512] = {0};
+    Value stack_debug[1024] = {0};
     int i = 0;
     printf("\nDEBUG_TRACE_EXECUTION\n");
 
@@ -54,45 +54,49 @@ InterpretResult run() {
         i++;
     }
 
-    for (i = i - 1; i >= 0; i--) { // why -1? honestly idk but it works
+    for (i = i - 1; i >= 0; i--) {
         printf("[ %g ]\n", stack_debug[i]);
     }
 
 
-    disassemble_instruction(vm.chunk, (uint32_t) (vm.ip - vm.chunk->code));
+    disassemble_instruction(vm.chunk, (int) (vm.ip - vm.chunk->code));
 #endif
 
-        uint32_t instruction;
+        uint8_t instruction;
         switch(instruction = READ_BYTE()) {
             case OP_CONSTANT: {
                 Value constant = READ_CONSTANT();
                 push(constant);
-                printf("[VM] Constant: %g\n", constant);
+                printf("[VM] Constant: ");
+                print_value(constant);
+                printf("\n");
                 break;
              }
 
             case OP_ADD:
                   BINARY_OP(+);
                   break;
-
+            
             case OP_SUBTRACT:
                   BINARY_OP(-);
                   break;
-
+            
             case OP_MULTIPLY:
                   BINARY_OP(*);
                   break;
-
+            
             case OP_DIVIDE:
                   BINARY_OP(/);
                   break;
-
+            
             case OP_NEGATE:
                 push(-pop());
                 break;
 
             case OP_RETURN: {
-                printf("[VM] RETURN VALUE: %g\n", pop());
+                printf("[VM] Return Value: ");
+                print_value(pop());
+                printf("\n");
                 return INTERPRET_OK;
              }
 
@@ -100,25 +104,29 @@ InterpretResult run() {
 
     }
 
-
 #undef READ_BYTE
 #undef READ_CONSTANT
 #undef BINARY_OP
 }
 
+
 InterpretResult interpret_VM(const char *src) {
+    /* We create a new empty chunk and pass it over to the compiler.
+     * The compiler will take the user’s program and fill up the chunk with bytecode. 
+     */
     Chunk chunk;
     init_chunk(&chunk);
-    /* We create a new empty chunk and pass it over to the compiler
-     * The compiler will take the user’s program and fill up the chunk with bytecode */
+
     if (!compile(src, &chunk)) {
         free_chunk(&chunk);
         return INTERPRET_COMPILE_ERROR;
     }
+
     vm.chunk = &chunk;
     vm.ip = vm.chunk->code;
 
     InterpretResult result = run();
+
     free_chunk(&chunk);
     return result;
 }

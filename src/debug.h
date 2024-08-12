@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include "chunk.h"
 
-uint32_t disassemble_instruction(Chunk *chunk, uint32_t offset);
+int disassemble_instruction(Chunk *chunk, int offset);
 void disassemble_chunk(Chunk *chunk, const char *name);
-uint32_t disassemble_constant_instruction(Chunk *chunk, uint32_t offset);
+int disassemble_constant_instruction(Chunk *chunk, int offset);
 
 
 #endif // ATJEH_DEBUG_H

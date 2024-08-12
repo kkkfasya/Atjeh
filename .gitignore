@@ -1,0 +1,9 @@
+c/
+build*
+*.sh
+desain_bahasa.aceh
+main
+todo.txt
+valgrind*
+yap.txt
+commit_msg.txt
