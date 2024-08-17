@@ -26,7 +26,21 @@ void free_value_array(ValueArray *array) {
 }
 
 void print_value(Value value) {
-    printf("%g", value);
-}
+    switch (value.type) {
+        case VALUE_BOOL:
+            printf(GET_BOOL(value) ? "true" : "false");
+            break;
 
+        case VALUE_NUMBER:
+            printf("%g", GET_NUMBER(value));
+            break;
+
+        case VALUE_NIL:
+            printf("nil"); // TODO: change to my syntax later, "hana"
+            break;
+
+        default:
+            fprintf(stderr, "[ERROR]: Unknown value");
+    }
+}
 

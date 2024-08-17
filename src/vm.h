@@ -23,6 +23,7 @@ void free_VM();
 InterpretResult interpret_VM(const char *src);
 void push(Value value);
 Value pop();
+bool is_values_equal(Value a, Value b);
 
 
 #endif // ATJEH_VM_H

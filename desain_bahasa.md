@@ -99,3 +99,4 @@ buet utama() {
 Penjelasan: Bahasa pemrograman dynamically-typed yang akan diinterpretasi.  
 
 Desain original mungkin akan diimplementasi dimasa depan tapi desain yang sekarang akan dipilih karena saya tidak punya waktu yang cukup untuk menyelesaikan bahasa ini sebelum ultah ke-16.
+NOTE: GAGAL, saya udh 16 :(

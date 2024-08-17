@@ -2,6 +2,8 @@
 // TODO: add exit keyword exclusive in repl
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <signal.h>
 #include "vm.h"
 #include "common.h"
 #include "chunk.h"
@@ -18,7 +20,6 @@ static char* read_file(const char *path) {
         fprintf(stderr, "[ERROR]: Could not open file \"%s\".\n", path);
         exit(74);
     }
-
 
     fseek(file, 0L, SEEK_END);
     size_t file_size = ftell(file);
@@ -45,21 +46,24 @@ static void run_file(const char *path) {
     InterpretResult result = interpret_VM(src);
     free(src); 
 
-    if (result == INTERPRET_COMPILE_ERROR) exit(65);
-    if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+    if (result == INTERPRET_COMPILE_ERROR) exit(69);
+    if (result == INTERPRET_RUNTIME_ERROR) exit(69);
 }
-
 
 static void repl() {
     char line[1024];
     for (;;) {
         printf("ATJ >> ");
-
-        if (!fgets(line, sizeof(line), stdin)) {
-            printf("\n");
+        char *input = fgets(line, sizeof(line), stdin);
+        if (strncmp(input, "exit", 4) == 0) {
+            printf("\e[1;1H\e[2J");
+            printf("[INFO]: Exiting repl.");
+            exit(0);
+        } if (!input) {
+            printf("MEMEK\n");
             break;
-        }
 
+        }
         interpret_VM(line);
     }
 }
@@ -76,7 +80,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: atjeh [path]\n");
         exit(64);
     }
-
 
     free_VM();
     return 0;

@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include "debug.h"
 #include "chunk.h"
+#include "value.h"
 
 
 int disassemble_constant_instruction(Chunk *chunk, int offset) {
     uint8_t constant_value_offset = chunk->code[offset + 1];
     printf("\t%04d\t\t'", constant_value_offset);
-    printf("%g", chunk->constants.values[constant_value_offset]);
+    printf("%g", GET_NUMBER(chunk->constants.values[constant_value_offset])); // WARN: might result in stupid
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
@@ -48,12 +49,40 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             printf("OP_DIVIDE\n");
             return offset + 1;
 
+        case OP_NIL:
+            printf("OP_NIL\n");
+            return offset + 1;
+
+        case OP_TRUE:
+            printf("OP_TRUE\n");
+            return offset + 1;
+
+        case OP_FALSE:
+            printf("OP_FALSE\n");
+            return offset + 1;
+
+        case OP_NOT:
+            printf("OP_NOT\n");
+            return offset + 1;
+
+        case OP_EQUAL:
+            printf("OP_EQUAL\n");
+            return offset + 1;
+
+        case OP_GREATER:
+            printf("OP_GREATER\n");
+            return offset + 1;
+
+        case OP_LESS:
+            printf("OP_LESS\n");
+            return offset + 1;
+
         case OP_RETURN:
             printf("OP_RETURN\n");
             return offset + 1;
 
         default:
-            fprintf(stderr, "[ERROR] Unkown OP_CODE (Operation Code)\n");
+            fprintf(stderr, "[ERROR]: Unkown OP_CODE (Operation Code)\n");
             return offset + 1;
 
     }

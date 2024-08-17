@@ -1,6 +1,6 @@
 c/
-build*
-*.sh
+build
+run.sh
 desain_bahasa.aceh
 main
 todo.txt

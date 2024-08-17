@@ -56,7 +56,7 @@ static void parse_precedence(Precedence precedence) {
     parse_token();
     ParseFn prefix_rule = get_rule(parser.previous.type)->prefix;
     if (prefix_rule == NULL) {
-        error_at("[ERROR] Expected expression", false);
+        error_at("[ERROR]: Expected expression", false);
         return;
     }
     prefix_rule();
@@ -97,6 +97,7 @@ static void parse_unary() {
     // Emit the operator instruction.
     switch (op_type) {
         case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
+        case TOKEN_BANG: emit_byte(OP_NOT); break;
         default: return;
     }
 }
@@ -112,11 +113,19 @@ static void parse_binary_op() {
         case TOKEN_STAR:    emit_byte(OP_MULTIPLY);  break;
         case TOKEN_SLASH:   emit_byte(OP_DIVIDE);    break;
 
+        case TOKEN_BANG_EQUAL:    emit_bytes(OP_EQUAL, OP_NOT);     break;
+        case TOKEN_EQUAL_EQUAL:   emit_byte(OP_EQUAL);              break;
+
+        case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NOT);      break;
+        case TOKEN_GREATER:       emit_byte(OP_GREATER);            break;
+
+        case TOKEN_LESS:          emit_byte(OP_LESS);               break;
+        case TOKEN_LESS_EQUAL:    emit_bytes(OP_GREATER, OP_NOT);   break;
+
         default:
             return; // Cant handle what we dont have
     }
 }
-
 
 static void consume_token(TokenType type, const char *msg) {
     if (parser.current.type == type) {
@@ -138,7 +147,7 @@ static void paren_grouping() {
 static uint8_t make_constant(Value value) {
     int constant = add_constant(current_chunk(), value);
     if (constant > UINT8_MAX) {
-        error_at("[ERROR] Too many constants in one chunk", false);
+        error_at("[ERROR]: Too many constants in one chunk", false);
         return 0;
     }
 
@@ -150,49 +159,58 @@ static void emit_constant(Value constant) {
 }
 
 static void parse_constant() {
-    Value value = strtod(parser.previous.start, NULL);
-    emit_constant(value); // do we really need this?
+    double value = strtod(parser.previous.start, NULL);
+    emit_constant(NUMBER_VAL(value)); // do we really need this?
     // emit_bytes(OP_CONSTANT, make_constant(value));
 }
 
-ParseRule rules[] = {   /* prefix   |   infix     |   precedence */
-    [TOKEN_LEFT_PAREN]    = {paren_grouping, NULL,            PREC_NONE},
-    [TOKEN_RIGHT_PAREN]   = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_LEFT_BRACE]    = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_RIGHT_BRACE]   = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_COMMA]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_DOT]           = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_MINUS]         = {parse_unary,    parse_binary_op, PREC_TERM},
-    [TOKEN_PLUS]          = {NULL,           parse_binary_op, PREC_TERM},
-    [TOKEN_SEMICOLON]     = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_SLASH]         = {NULL,           parse_binary_op, PREC_FACTOR},
-    [TOKEN_STAR]          = {NULL,           parse_binary_op, PREC_FACTOR},
-    [TOKEN_BANG]          = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_BANG_EQUAL]    = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_EQUAL]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_EQUAL_EQUAL]   = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_GREATER]       = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_GREATER_EQUAL] = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_LESS]          = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_LESS_EQUAL]    = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_IDENTIFIER]    = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_STRING]        = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_NUMBER]        = {parse_constant, NULL,            PREC_NONE},
-    [TOKEN_AND]           = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_ELSE]          = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_FALSE]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_FOR]           = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_FUNC]          = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_IF]            = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_NIL]           = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_OR]            = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_PRINT]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_RETURN]        = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_TRUE]          = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_VAR]           = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_WHILE]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_ERROR]         = {NULL,           NULL,            PREC_NONE},
-    [TOKEN_EOF]           = {NULL,           NULL,            PREC_NONE},
+static void parse_literal() {
+    switch (parser.previous.type) {
+        case TOKEN_FALSE: emit_byte(OP_FALSE); break;
+        case TOKEN_NIL: emit_byte(OP_NIL); break;
+        case TOKEN_TRUE: emit_byte(OP_TRUE); break;
+        default: return;
+    }
+}
+
+ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
+    [TOKEN_LEFT_PAREN]    = {paren_grouping, NULL,              PREC_NONE},
+    [TOKEN_RIGHT_PAREN]   = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_LEFT_BRACE]    = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_RIGHT_BRACE]   = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_COMMA]         = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_DOT]           = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_MINUS]         = {parse_unary,    parse_binary_op,   PREC_TERM},
+    [TOKEN_PLUS]          = {NULL,           parse_binary_op,   PREC_TERM},
+    [TOKEN_SEMICOLON]     = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_SLASH]         = {NULL,           parse_binary_op,   PREC_FACTOR},
+    [TOKEN_STAR]          = {NULL,           parse_binary_op,   PREC_FACTOR},
+    [TOKEN_BANG]          = {parse_unary,    NULL,              PREC_NONE},
+    [TOKEN_EQUAL]         = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_BANG_EQUAL]    = {NULL,           parse_binary_op,   PREC_EQUALITY},
+    [TOKEN_EQUAL_EQUAL]   = {NULL,           parse_binary_op,   PREC_EQUALITY},
+    [TOKEN_GREATER]       = {NULL,           parse_binary_op,   PREC_COMPARISON},
+    [TOKEN_GREATER_EQUAL] = {NULL,           parse_binary_op,   PREC_COMPARISON},
+    [TOKEN_LESS]          = {NULL,           parse_binary_op,   PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL]    = {NULL,           parse_binary_op,   PREC_COMPARISON},
+    [TOKEN_IDENTIFIER]    = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_STRING]        = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_NUMBER]        = {parse_constant, NULL,              PREC_NONE},
+    [TOKEN_AND]           = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_ELSE]          = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_FALSE]         = {parse_literal,  NULL,              PREC_NONE},
+    [TOKEN_FOR]           = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_FUNC]          = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_IF]            = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_NIL]           = {parse_literal,  NULL,              PREC_NONE},
+    [TOKEN_OR]            = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_PRINT]         = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_RETURN]        = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_TRUE]          = {parse_literal,  NULL,              PREC_NONE},
+    [TOKEN_VAR]           = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_WHILE]         = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_ERROR]         = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_EOF]           = {NULL,           NULL,              PREC_NONE},
 };
 
 ParseRule *get_rule(TokenType type) {
