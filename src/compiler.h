@@ -37,7 +37,6 @@ typedef struct {
 /* One-pass compiler*/
 // bool compile(const char *src, Chunk *chunk);
 bool compile(const char *src, Chunk *chunk);
-
 ParseRule *get_rule(TokenType type);
 
 #endif // ATJEH_COMPILER_H

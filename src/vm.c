@@ -1,14 +1,18 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
+
 #include "vm.h"
 #include "chunk.h"
 #include "debug.h"
 #include "common.h"
 #include "value.h"
 #include "compiler.h"
+#include "object.h"
+#include "memory.h"
 
 
-// TODO: dynamic VM, maybe...
+// Turns out, making this dynamic serve zero benefits (AFAIK)
 VM vm; // i only need 1 VM so instead of passing pointer here and there, just make a global variable
 
 static void reset_stack() {
@@ -17,9 +21,11 @@ static void reset_stack() {
 
 void init_VM() {
     reset_stack();
+    vm.objects = NULL;
 }
 
 void free_VM() {
+    free_objects();
 
 }
 
@@ -80,6 +86,34 @@ static void print_stack_value(Value value) {
 }
 
 
+static void concat_str() {
+    ObjString *a = GET_STRING_PTR(pop());
+    ObjString *b = GET_STRING_PTR(pop());
+    
+    int len = a->len + b->len;
+    char *str = ALLOCATE(char, len + 1); // once again, +1, sweet null terminator
+
+    // This is somewhat a visual explanation for the code below
+
+    /* 
+     * 0x0 == [] <= a->str
+     * 0x0 == [a->str]
+     * 0x5 == [a->str + a->len]
+     * 0x5 == [a->str] <= b->str
+     * 0x5 == [a->str+b->str] 
+     */
+    
+    memcpy(str, a->str, a->len);
+    memcpy(str + a->len, b->str, b->len);
+
+    // 0x11 == ['\0']
+    str[len] = '\0';
+    
+    ObjString *result = take_string(str, len);
+    push(OBJ_VAL(result));
+}
+
+
 static InterpretResult run() {
 #define READ_BYTE() (*vm.ip++)
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
@@ -135,9 +169,21 @@ static InterpretResult run() {
                           push(BOOL_VAL(false));
                           break;
 
-        case OP_ADD:
-                          BINARY_OP(NUMBER_VAL, +);
-                          break;
+        case OP_ADD: {
+                         if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
+                             concat_str();
+                         } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                             double b = GET_NUMBER(pop());
+                             double a = GET_NUMBER(pop());
+                             push(NUMBER_VAL(a + b));
+                         } else {
+                             runtime_error(
+                                     "Operands must be two numbers or two strings.");
+                             return INTERPRET_RUNTIME_ERROR;
+                         }
+                         break;
+                     }
+
 
         case OP_SUBTRACT:
                           BINARY_OP(NUMBER_VAL, -);
@@ -189,15 +235,6 @@ static InterpretResult run() {
 #undef BINARY_OP
 }
 
-bool is_values_equal(Value a, Value b) {
-    if (a.type != b.type) return false;
-    switch (a.type) {
-        case VALUE_BOOL:   return GET_BOOL(a) == GET_BOOL(b);
-        case VALUE_NIL:    return true;
-        case VALUE_NUMBER: return GET_NUMBER(a) == GET_NUMBER(b);
-        default:         return false;
-    }
-}
 
 InterpretResult interpret_VM(const char *src) {
     /* We create a new empty chunk and pass it over to the compiler.

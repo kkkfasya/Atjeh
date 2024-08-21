@@ -4,6 +4,8 @@
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
+#include "object.h"
+
 
 Parser parser;
 Chunk *compile_chunk;
@@ -173,6 +175,14 @@ static void parse_literal() {
     }
 }
 
+static void parse_string() {
+/* The + 1 and - 2 parts trim the leading and trailing quotation marks.
+ * It then creates a string object,
+ * wraps it in a Value, and stuffs it into the constant table. */
+    emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1,
+                    parser.previous.length - 2)));
+}
+
 ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
     [TOKEN_LEFT_PAREN]    = {paren_grouping, NULL,              PREC_NONE},
     [TOKEN_RIGHT_PAREN]   = {NULL,           NULL,              PREC_NONE},
@@ -194,7 +204,7 @@ ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
     [TOKEN_LESS]          = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]    = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_IDENTIFIER]    = {NULL,           NULL,              PREC_NONE},
-    [TOKEN_STRING]        = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_STRING]        = {parse_string,           NULL,              PREC_NONE},
     [TOKEN_NUMBER]        = {parse_constant, NULL,              PREC_NONE},
     [TOKEN_AND]           = {NULL,           NULL,              PREC_NONE},
     [TOKEN_ELSE]          = {NULL,           NULL,              PREC_NONE},

@@ -1,5 +1,4 @@
 // TODO: change int to int32_t, and such when it all works
-// TODO: add exit keyword exclusive in repl
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
