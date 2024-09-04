@@ -10,9 +10,7 @@
 #include "value.h"
 #include "compiler.h"
 
-
-
-static char* read_file(const char *path) {
+static char *read_file(const char *path) {
     FILE *file = fopen(path, "rb");
 
     if (file == NULL) {

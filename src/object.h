@@ -25,7 +25,6 @@ typedef enum {
 /* We’ll use an intrusive list—the Obj struct itself will be the linked list node. Each Obj gets a pointer to the next Obj in the chain.
 */
 
-
 struct Obj {
     ObjType type;
     struct Obj *next_obj;
@@ -39,6 +38,7 @@ struct ObjString {
     Obj obj;
     int len;
     char *str;
+    uint32_t hash;
 };
 
 /* If this is a macro, it would cause stupid shit
@@ -46,7 +46,7 @@ struct ObjString {
 static inline bool is_obj_type(Value value, ObjType type) {
     return IS_OBJ(value) && GET_OBJ(value)->type == type;
 }
-
+// damn bruh we really reimplementing string here i love c
 ObjString *copy_string(const char *str, int len);
 // Take ownership of the string
 ObjString *take_string(char *str, int len);

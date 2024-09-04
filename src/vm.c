@@ -10,6 +10,7 @@
 #include "compiler.h"
 #include "object.h"
 #include "memory.h"
+#include "table.h"
 
 
 // Turns out, making this dynamic serve zero benefits (AFAIK)
@@ -22,11 +23,12 @@ static void reset_stack() {
 void init_VM() {
     reset_stack();
     vm.objects = NULL;
+    init_table(&vm.strings);
 }
 
 void free_VM() {
+    free_table(&vm.strings);
     free_objects();
-
 }
 
 void push(Value value) {

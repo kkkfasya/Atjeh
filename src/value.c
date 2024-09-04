@@ -30,17 +30,11 @@ void free_value_array(ValueArray *array) {
 bool is_values_equal(Value a, Value b) {
     if (a.type != b.type) return false;
     switch (a.type) {
-        case VALUE_BOOL:   return GET_BOOL(a) == GET_BOOL(b);
-        case VALUE_NIL:    return true;
-        case VALUE_NUMBER: return GET_NUMBER(a) == GET_NUMBER(b);
-        case VALUE_OBJ: {
-                            ObjString *str_a = GET_STRING_PTR(a);
-                            ObjString *str_b = GET_STRING_PTR(b);
-                            // TODO: will it have an effect if i wrap this in parentheses?
-                            return str_a->len == str_b->len && 
-                                memcmp(str_a->str, str_b->str, str_a->len) == 0;
-                        }
-        default:         return false;
+        case VALUE_BOOL:    return GET_BOOL(a) == GET_BOOL(b);
+        case VALUE_NIL:     return true;
+        case VALUE_NUMBER:  return GET_NUMBER(a) == GET_NUMBER(b);
+        case VALUE_OBJ:     return GET_OBJ(a) == GET_OBJ(b);
+        default:            return false;
     }
 }
 
