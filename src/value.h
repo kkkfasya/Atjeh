@@ -28,10 +28,11 @@ typedef struct {
     Value *values;
 } ValueArray; // store constant, maybe i should change it to ConstantPool
 
+// TODO: change to INSERT_<data_type>_VAL
 #define BOOL_VAL(value)   ((Value) {VALUE_BOOL, {.boolean = value}} )
 #define NUMBER_VAL(value) ((Value) {VALUE_NUMBER, {.number = value}} )
 #define NIL_VAL           ((Value) {VALUE_NIL, {.number = 0}} )
-#define OBJ_VAL(object)   ((Value) {VALUE_BOOL, {.obj = (Obj*) object}})
+#define OBJ_VAL(object)   ((Value) {VALUE_OBJ, {.obj = (Obj*) object}})
 // nil is 0, end of debate
 
 // NOTE: AS_<value_type>

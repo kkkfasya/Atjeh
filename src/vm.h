@@ -12,6 +12,7 @@ typedef struct {
     Value stack[STACK_MAX_SIZE];
     Value *stack_top; //  stack_top points just past the last item e.g {0, 1, -> NULL}
     Table strings;
+    Table globals; // for global var
     Obj *objects; 
 } VM;
 

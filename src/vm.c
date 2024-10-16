@@ -13,6 +13,14 @@
 #include "table.h"
 
 
+static void reset_stack();
+static Value peek(int distance);
+static void runtime_error(const char* format, ...); 
+static bool is_falsey(Value value); 
+static void print_stack_value(Value value); 
+static void concat_str(); 
+static InterpretResult run(); 
+ 
 // Turns out, making this dynamic serve zero benefits (AFAIK)
 VM vm; // i only need 1 VM so instead of passing pointer here and there, just make a global variable
 
@@ -24,10 +32,12 @@ void init_VM() {
     reset_stack();
     vm.objects = NULL;
     init_table(&vm.strings);
+    init_table(&vm.globals);
 }
 
 void free_VM() {
     free_table(&vm.strings);
+    free_table(&vm.globals);
     free_objects();
 }
 
@@ -117,8 +127,9 @@ static void concat_str() {
 
 
 static InterpretResult run() {
-#define READ_BYTE() (*vm.ip++)
+#define READ_BYTE() (*vm.ip++) // point to next bytecode/instruction
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+#define READ_STRING() GET_STRING_PTR(READ_CONSTANT())
 #define BINARY_OP(value_type, op) \
     { \
         if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -135,16 +146,17 @@ static InterpretResult run() {
     int i = 0;
     printf("\nDEBUG_TRACE_EXECUTION\n");
 
-    for (Value *slot = vm.stack; slot < vm.stack_top; slot++) {
-        stack_debug[i] = *slot;
-        i++;
-    }
-
-    for (i = i - 1; i >= 0; i--) {
-        Value v = stack_debug[i];
-        print_stack_value(v);
-    }
-
+    // BUG: the bug is actually here, it doesnt execute
+    // for (Value *slot = vm.stack; slot < vm.stack_top; slot++) {
+    //     stack_debug[i] = *slot;
+    //     i++;
+    // }
+    //
+    // for (i = i - 1; i >= 0; i--) {
+    //     Value v = stack_debug[i];
+    //     print_stack_value(v);
+    // }
+    //
 
     disassemble_instruction(vm.chunk, (int) (vm.ip - vm.chunk->code));
 #endif
@@ -159,6 +171,9 @@ static InterpretResult run() {
                               printf("\n");
                               break;
                           }
+
+        case OP_POP: pop(); break;
+
         case OP_NIL:
                           push(NIL_VAL); 
                           break;
@@ -221,18 +236,54 @@ static InterpretResult run() {
         case OP_GREATER:  BINARY_OP(BOOL_VAL, >); break;
 
         case OP_LESS:     BINARY_OP(BOOL_VAL, <); break;
+        case OP_PRINT:
+                          print_value(pop());
+                          printf("\n");
+                          break;
+        case OP_DEFINE_GLOBAL:
+                          /* Get the name of the variable from the constant table. Then take the value from the top of the stack and store it in a hash table with that name as the key. */
 
+                          // honestly i dont know where most of the data goes its quite confusing right now
+                          // by the time i finish this i'll probably will only understand 50% of it
+                          // TODO: REFACTOR, too many macros and helper function it is unhelpful anymore
+                          ObjString *var_name = READ_STRING();
+                          table_set(&vm.globals, var_name, peek(0));
+                          pop();
+                          break;
 
-        case OP_RETURN: { // BUG: does not work right now
-                            printf("[VM] Return Value: ");
-                            print_value(pop());
-                            printf("\n");
+        case OP_GET_GLOBAL: {
+                                ObjString *name = READ_STRING();
+                                Value value;
+                                if (!table_get(&vm.globals, name, &value)) {
+                                    runtime_error("Undefined variable '%s'.", name->str);
+                                    return INTERPRET_RUNTIME_ERROR;
+                                }
+                                push(value);
+                                break;
+                            }
+
+        case OP_SET_GLOBAL: {
+                                // If the variable hasn’t been defined yet, 
+                                // it’s a runtime error to try to assign to it
+                                // no fucking implicit declaration, i like it explicit
+                                ObjString *name = READ_STRING();
+                                if (table_set(&vm.globals, name, peek(0))) {
+                                    table_delete(&vm.globals, name);
+                                    runtime_error("Undefined variable '%s'.", name->str);
+                                    return INTERPRET_RUNTIME_ERROR;
+                                }
+                                break;
+                            }
+
+        case OP_RETURN: { 
+                          // EXIT
                             return INTERPRET_OK;
                         }
     }
 
     return INTERPRET_OK;
 #undef READ_BYTE
+#undef READ_STRING
 #undef READ_CONSTANT
 #undef BINARY_OP
 }

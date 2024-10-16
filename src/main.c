@@ -10,6 +10,11 @@
 #include "value.h"
 #include "compiler.h"
 
+
+static char *read_file(const char *path);
+static void run_file(const char *path);
+static void repl();
+
 static char *read_file(const char *path) {
     FILE *file = fopen(path, "rb");
 

@@ -4,6 +4,22 @@
 #include "common.h"
 #include "scanner.h"
 
+
+
+static bool is_eof();
+static char next_char(); // advance; NOTE:: delete later
+static char peek();
+static char peek_next();
+static bool match(char expected);
+static bool match(char expected);
+static TokenType identifier_type();
+static Token make_token(TokenType type);
+static Token error_token(const char *msg);
+static void skip_whitespace();
+static Token string_token();
+static Token number_token();
+static Token identifier_token();
+
 Scanner scanner;
 
 Token token;
@@ -40,9 +56,6 @@ static bool match(char expected) {
     return false;
 
 }
-
-
-
 
 static TokenType check_keyword(int start, int length, const char *rest, TokenType type) {
     /* Once we’ve found a prefix that could only be one possible reserved word

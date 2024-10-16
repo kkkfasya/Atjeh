@@ -9,6 +9,10 @@
 #define ALLOCATE_OBJ(type, obj_type) \
     (type*) allocate_obj(sizeof(type), obj_type)
 
+static Obj *allocate_obj(size_t size, ObjType type);
+static ObjString *allocate_string(char *str, int len, uint32_t hash);
+static uint32_t hash_string(const char* key, int length);
+
 static Obj *allocate_obj(size_t size, ObjType type) {
     Obj *obj = (Obj*) dynamic_realloc(NULL, 0, size);
     obj->type = type;

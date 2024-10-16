@@ -7,11 +7,50 @@
 #include "object.h"
 
 
+// if each static function in this program could be converted to 1kg of meat, then it'd solve world hunger
+static void consume_token(TokenType type, const char *msg);
+static void parse_token();
+static void parse_precedence(Precedence precedence);
+
+static void emit_byte(uint8_t byte);
+static void emit_bytes(uint8_t byte1, uint8_t byte2);
+static void emit_return();
+static uint8_t make_constant(Value value);
+static void emit_constant(Value value);
+
+static Chunk *current_chunk();
+
+static void parse_constant(bool can_assign);
+static void parse_string(bool can_assign);
+static void parse_literal(bool can_assign);
+static void parse_unary(bool can_assign);
+static void parse_binary_op(bool can_assign);
+static void paren_grouping(bool can_assign);
+
+static void error(Token *token, const char *msg);
+static void error_at(const char*, bool);
+
+static bool check_type(TokenType type);
+static bool match(TokenType type);
+static void expression();
+static void declaration();
+
+static void statement();
+static void print_statement();
+static void expression_statement();
+
+static uint8_t parse_var_token(const char *err_msg);
+static void var_declaration();
+static uint8_t identifier_constant(Token *name);
+static void define_var(uint8_t global);
+static void parse_var_identifier(bool can_assign);
+static void named_var(Token name, bool can_assign);
+static void end_compile();
+
 Parser parser;
 Chunk *compile_chunk;
 
 static void error(Token *token, const char *msg) {
-
     fprintf(stderr, "[line %d] Error", token->line);
 
     if (token->type == TOKEN_EOF) {
@@ -61,11 +100,13 @@ static void parse_precedence(Precedence precedence) {
         error_at("[ERROR]: Expected expression", false);
         return;
     }
-    prefix_rule();
+    bool can_assign = precedence <= PREC_ASSIGNMENT; // so if it doesn't have precedence such as identifier and such such it is assign-able
+
+    prefix_rule(can_assign);
     while (precedence <= get_rule(parser.current.type)->precedence) {
         parse_token();
         ParseFn infix_rule = get_rule(parser.previous.type)->infix;
-        infix_rule();
+        infix_rule(can_assign);
     }
 }
 
@@ -82,16 +123,91 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2) {
     emit_byte(byte2);
 }
 
-
 static void emit_return() {
     emit_byte(OP_RETURN);
+}
+
+static bool check_type(TokenType type) {
+    return parser.current.type == type;
+}
+
+static bool match(TokenType type) {
+    if (!check_type(type)) return false;
+    parse_token();
+    return true;
+}
+
+static void var_declaration() {
+    // basically we shove OP_DEFINE_GLOBAL TOKEN
+    uint8_t global = parse_var_token("Expect a variable name");
+
+    if (match(TOKEN_EQUAL)) {
+        expression();
+    } else {
+        emit_byte(OP_NIL);
+    }
+    consume_token(TOKEN_SEMICOLON, "Expect ; after variable declaration");
+
+    define_var(global);
 }
 
 static void expression() {
     parse_precedence(PREC_ASSIGNMENT);
 }
 
-static void parse_unary() {
+static void expression_statement() {
+    expression();
+    consume_token(TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emit_byte(OP_POP);
+}
+
+static void print_statement() {
+    expression();
+    consume_token(TOKEN_SEMICOLON, "Expect ';' after value.");
+    emit_byte(OP_PRINT);
+}
+
+static void statement() {
+    if (match(TOKEN_PRINT)) {
+        print_statement();
+    } else {
+        expression_statement();
+    }
+}
+
+static void synchronize_error() {
+    parser.panic_mode = false;
+
+    while (parser.current.type != TOKEN_EOF) {
+        if (parser.previous.type == TOKEN_SEMICOLON) return;
+        switch (parser.current.type) {
+            case TOKEN_FUNC:
+            case TOKEN_VAR:
+            case TOKEN_FOR:
+            case TOKEN_IF:
+            case TOKEN_WHILE:
+            case TOKEN_PRINT:
+            case TOKEN_RETURN:
+                return;
+
+            default:
+                // yeah
+
+        }
+        parse_token();
+    }
+}
+
+static void declaration() {
+    if (match(TOKEN_VAR)) {
+        var_declaration();
+    } else {
+        statement();
+    }
+    if (parser.panic_mode) synchronize_error();
+}
+
+static void parse_unary(bool can_assign) {
     TokenType op_type = parser.previous.type;
 
     // Compile the operand.
@@ -104,7 +220,7 @@ static void parse_unary() {
     }
 }
 
-static void parse_binary_op() {
+static void parse_binary_op(bool can_assign) {
     TokenType op_type = parser.previous.type;
     ParseRule *rule = get_rule(op_type);
     parse_precedence((Precedence)(rule->precedence + 1));
@@ -125,11 +241,12 @@ static void parse_binary_op() {
         case TOKEN_LESS_EQUAL:    emit_bytes(OP_GREATER, OP_NOT);   break;
 
         default:
-            return; // Cant handle what we dont have
+                                  return; // Cant handle what we dont have
     }
 }
 
 static void consume_token(TokenType type, const char *msg) {
+    // TODO: rename to check_token_then_parse
     if (parser.current.type == type) {
         parse_token();
         return;
@@ -138,7 +255,7 @@ static void consume_token(TokenType type, const char *msg) {
     error_at(msg, true);
 }
 
-static void paren_grouping() {
+static void paren_grouping(bool can_assign) {
     /* We assume the initial ( has already been consumed.
      * We recursively call back into expression() to compile the expression
      * between the parentheses, then parse the closing ) at the end.*/
@@ -157,16 +274,16 @@ static uint8_t make_constant(Value value) {
 }
 
 static void emit_constant(Value constant) {
-     emit_bytes(OP_CONSTANT, make_constant(constant));
+    emit_bytes(OP_CONSTANT, make_constant(constant));
 }
 
-static void parse_constant() {
+static void parse_constant(bool can_assign) {
     double value = strtod(parser.previous.start, NULL);
-    emit_constant(NUMBER_VAL(value)); // do we really need this?
-    // emit_bytes(OP_CONSTANT, make_constant(value));
+    emit_constant(NUMBER_VAL(value)); // XXX: do we really need this?
+                                      // emit_bytes(OP_CONSTANT, make_constant(value));
 }
 
-static void parse_literal() {
+static void parse_literal(bool can_assign) {
     switch (parser.previous.type) {
         case TOKEN_FALSE: emit_byte(OP_FALSE); break;
         case TOKEN_NIL: emit_byte(OP_NIL); break;
@@ -175,12 +292,51 @@ static void parse_literal() {
     }
 }
 
-static void parse_string() {
-/* The + 1 and - 2 parts trim the leading and trailing quotation marks.
- * It then creates a string object,
- * wraps it in a Value, and stuffs it into the constant table. */
+static void define_var(uint8_t global) {
+    emit_bytes(OP_DEFINE_GLOBAL, global);
+}
+
+static uint8_t identifier_constant(Token *name) {
+    /* This function takes the given token and adds its lexeme to the chunk’s constant table as a string. It then returns the index of that constant in the constant table.
+
+       Global variables are looked up by name at runtime. That means the VM—the bytecode interpreter loop—needs access to the name. A whole string is too big to stuff into the bytecode stream as an operand. Instead, we store the string in the constant table and the instruction then refers to the name by its index in the table.*/
+    
+    // basically put the var name in the constant table and return its index so we can refer to that later
+    return make_constant(OBJ_VAL(copy_string(name->start,
+                    name->length)));
+}
+
+static uint8_t parse_var_token(const char *err_msg) {
+    consume_token(TOKEN_IDENTIFIER, err_msg);
+    return identifier_constant(&parser.previous); // why previous? because the current is semicolon
+}
+
+static void parse_string(bool can_assign) {
+    /* The + 1 and - 2 parts trim the leading and trailing quotation marks.
+     * It then creates a string object,
+     * wraps it in a Value, and stuffs it into the constant table. */
     emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1,
                     parser.previous.length - 2)));
+}
+
+static void named_var(Token name, bool can_assign) {
+  uint8_t arg = identifier_constant(&name);
+  /* In the parse function for identifier expressions, 
+   * we look for an equals sign after the identifier. 
+   * If we find one, instead of emitting code for a variable access, 
+   * we compile the assigned value and then emit an assignment instruction. */
+
+  if (can_assign && match(TOKEN_EQUAL)) {
+      expression();
+      emit_bytes(OP_SET_GLOBAL, arg);
+  } else {
+      emit_bytes(OP_GET_GLOBAL, arg);
+  }
+
+}
+
+static void parse_var_identifier(bool can_assign) { // NOTE: variable, delete later
+    named_var(parser.previous, can_assign);
 }
 
 ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
@@ -203,7 +359,7 @@ ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
     [TOKEN_GREATER_EQUAL] = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_LESS]          = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]    = {NULL,           parse_binary_op,   PREC_COMPARISON},
-    [TOKEN_IDENTIFIER]    = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_IDENTIFIER]    = {parse_var_identifier,           NULL,              PREC_NONE},
     [TOKEN_STRING]        = {parse_string,           NULL,              PREC_NONE},
     [TOKEN_NUMBER]        = {parse_constant, NULL,              PREC_NONE},
     [TOKEN_AND]           = {NULL,           NULL,              PREC_NONE},
@@ -243,8 +399,10 @@ bool compile(const char *src, Chunk *chunk) {
     parser.is_error = false;
     parser.panic_mode = false;
     parse_token();
-    expression();
-    consume_token(TOKEN_EOF, "Expect end of expression.");
+
+    while (!match(TOKEN_EOF)) {
+        declaration();
+    }
     end_compile();
     return !parser.is_error;
 }

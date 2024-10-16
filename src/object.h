@@ -9,8 +9,8 @@
 #define IS_STRING(value) is_obj_type(value, OBJ_STRING)
 
 // NOTE: AS_<shit>
-#define GET_STRING_PTR(value)       ( (ObjString*) GET_OBJ(value))
-#define GET_CSTRING(value)      ( ((ObjString*) GET_OBJ(value))->str)
+#define GET_STRING_PTR(value)       ( (ObjString*) GET_OBJ(value)) // get ptr to "this" NOTE: AS_STRING, delete later
+#define GET_CSTRING(value)      ( ((ObjString*) GET_OBJ(value))->str) // get "this"
 
 typedef enum {
     OBJ_STRING,

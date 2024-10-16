@@ -3,6 +3,9 @@
 #include "object.h"
 #include "vm.h"
 
+
+static void free_object(Obj *obj);
+
 void *dynamic_realloc(void *ptr, size_t old_size, size_t new_size) {
     if (new_size == 0) {
         free(ptr);

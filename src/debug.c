@@ -7,7 +7,7 @@
 int disassemble_constant_instruction(Chunk *chunk, int offset) {
     uint8_t constant_value_offset = chunk->code[offset + 1];
     printf("\t%04d\t\t'", constant_value_offset);
-    printf("%g", GET_NUMBER(chunk->constants.values[constant_value_offset])); // WARN: might result in stupid
+    printf("[CONSTANT_VALUE]: %g", GET_NUMBER(chunk->constants.values[constant_value_offset])); // WARN: might result in stupid
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
@@ -24,10 +24,13 @@ int disassemble_instruction(Chunk *chunk, int offset) {
     }
 
     switch (instruction) {
+        case OP_POP:
+            printf("OP_POP\n");
+            return offset + 1;
+
         case OP_CONSTANT:
             printf("%-16s", "OP_CONSTANT");
-            int f = disassemble_constant_instruction(chunk, offset);
-            return f;
+            return disassemble_constant_instruction(chunk, offset);
 
         case OP_NEGATE:
             printf("OP_NEGATE\n");
@@ -80,6 +83,22 @@ int disassemble_instruction(Chunk *chunk, int offset) {
         case OP_RETURN:
             printf("OP_RETURN\n");
             return offset + 1;
+
+        case OP_PRINT:
+            printf("OP_PRINT\n");
+            return offset + 1;
+
+    case OP_DEFINE_GLOBAL:
+            printf("OP_DEFINE_GLOBAL\n");
+            return disassemble_constant_instruction(chunk, offset);
+
+    case OP_GET_GLOBAL:
+            printf("OP_GET_GLOBAL\n");
+            return disassemble_constant_instruction(chunk, offset);
+
+    case OP_SET_GLOBAL:
+            printf("OP_SET_GLOBAL\n");
+            return disassemble_constant_instruction(chunk, offset);
 
         default:
             fprintf(stderr, "[ERROR]: Unkown OP_CODE (Operation Code)\n");

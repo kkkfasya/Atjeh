@@ -8,6 +8,9 @@
 
 #define TABLE_MAX_LOAD 0.75 // we grow the table when the load capacity is 75%
 
+static Entry *find_entry(Entry*, int, ObjString*);
+static void adjust_capacity(Table*, int);
+
 void init_table(Table *table) {
     table->capacity = 0;
     table->used_count = 0;
@@ -115,7 +118,7 @@ bool table_get(Table* table, ObjString *key, Value *value) {
     return true;
 }
 
-bool table_delete(Table* table, ObjString* key){
+bool table_delete(Table *table, ObjString *key){
     if (table->used_count == 0) return false;
 
     // Find the entry.

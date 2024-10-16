@@ -25,7 +25,7 @@ typedef enum {
     PREC_PRIMARY
 } Precedence; // HACK: never change order of this enum, its order determine its precedence
 
-typedef void (*ParseFn)(); // ParseFn type is a simple typedef for a function type that takes no arguments and returns nothing.
+typedef void (*ParseFn)(bool can_assign); // ParseFn type is a simple typedef for a function type that takes no arguments and returns nothing.
 
 typedef struct {
     ParseFn prefix;
@@ -35,7 +35,6 @@ typedef struct {
 
 
 /* One-pass compiler*/
-// bool compile(const char *src, Chunk *chunk);
 bool compile(const char *src, Chunk *chunk);
 ParseRule *get_rule(TokenType type);
 
