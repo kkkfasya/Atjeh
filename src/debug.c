@@ -11,6 +11,12 @@ int disassemble_constant_instruction(Chunk *chunk, int offset) {
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
+static int disassemble_byte_instruction(const char *name, Chunk *chunk,
+        int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    printf("%-16s %4d\n", name, slot);
+    return offset + 2; 
+}
 
 int disassemble_instruction(Chunk *chunk, int offset) {
     printf("%04d\t", offset); // %04d e.g will format 7 to 0007, instruction offset
@@ -99,6 +105,12 @@ int disassemble_instruction(Chunk *chunk, int offset) {
     case OP_SET_GLOBAL:
             printf("OP_SET_GLOBAL\n");
             return disassemble_constant_instruction(chunk, offset);
+
+    case OP_GET_LOCAL: 
+            return disassemble_byte_instruction("OP_GET_LOCAL", chunk, offset);
+
+    case OP_SET_LOCAL:
+            return disassemble_byte_instruction("OP_SET_LOCAL", chunk, offset);
 
         default:
             fprintf(stderr, "[ERROR]: Unkown OP_CODE (Operation Code)\n");

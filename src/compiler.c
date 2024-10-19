@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
@@ -39,16 +40,26 @@ static void statement();
 static void print_statement();
 static void expression_statement();
 
+static void code_block();
+static void begin_scope();
+static void end_scope();
+
 static uint8_t parse_var_token(const char *err_msg);
-static void var_declaration();
 static uint8_t identifier_constant(Token *name);
+static void var_declaration();
 static void define_var(uint8_t global);
 static void parse_var_identifier(bool can_assign);
 static void named_var(Token name, bool can_assign);
+static void add_local(Token name);
+static void declare_var(); // HOLY FUCK THIS BOOK SUCKS (it was free tho so no problem)
+static bool is_identifier_equal(Token *a, Token *b);
+
 static void end_compile();
+static void init_compiler(Compiler *compiler);
 
 Parser parser;
-Chunk *compile_chunk;
+Chunk *compile_chunk = NULL;
+Compiler *current_compiler = NULL;
 
 static void error(Token *token, const char *msg) {
     fprintf(stderr, "[line %d] Error", token->line);
@@ -63,6 +74,11 @@ static void error(Token *token, const char *msg) {
 
     fprintf(stderr, ": %s\n", msg);
     parser.is_error = true;
+}
+
+static bool is_identifier_equal(Token *a, Token *b) {
+    if (a->length != b->length) return false;
+    return memcmp(a->start, b->start, a->length) == 0;
 }
 
 static void error_at(const char *msg, bool is_current) {
@@ -82,6 +98,52 @@ static void parse_token() { // NOTE: advance(); delete later
         if (parser.current.type != TOKEN_ERROR) break;
 
         error_at(parser.current.start, true);
+    }
+}
+
+static void declare_var() {
+    if (current_compiler->scope_depth == 0) return;
+    Token *name = &parser.previous;
+
+    for (int i = current_compiler->local_count - 1; i >= 0; i--) {
+        Local* local = &current_compiler->locals[i];
+        if (local->depth != -1 && local->depth < current_compiler->scope_depth) {
+            break; 
+        }
+
+        if (is_identifier_equal(name, &local->name)) {
+            error_at("Already a variable with this name in this scope.", false);
+        }
+    }
+    add_local(*name);
+}
+
+
+static void add_local(Token name) {
+    if (current_compiler->local_count == MAX_LOCAL_VAR) {
+        error_at("Too many local variables in function.", false);
+        return;
+    }
+
+    Local *local_var = &current_compiler->locals[current_compiler->local_count++];
+
+    local_var->name = name;
+    local_var->depth = -1;
+}
+
+static void begin_scope() {
+    current_compiler->scope_depth++;
+}
+
+static void end_scope() {
+    current_compiler->scope_depth--;
+
+    // pop local var from the stack when it goes out of scope
+    while (current_compiler->scope_depth > 0 
+            && current_compiler->locals[current_compiler->local_count -1].depth 
+            > current_compiler->scope_depth) {
+        emit_byte(OP_POP);
+        current_compiler->local_count--;
     }
 }
 
@@ -137,6 +199,7 @@ static bool match(TokenType type) {
     return true;
 }
 
+// NOTE: global var here is late bound btw, so it is evaluated in runtime
 static void var_declaration() {
     // basically we shove OP_DEFINE_GLOBAL TOKEN
     uint8_t global = parse_var_token("Expect a variable name");
@@ -167,12 +230,32 @@ static void print_statement() {
     emit_byte(OP_PRINT);
 }
 
+/* An expression is something, 
+ * while a statement does something.
+ * expression is a statement as well, but it must have a return (expression statement).
+ *
+ * 1 + 1 is expression, it produces value, and value could also be considered expression
+ * var j = 2 is statement, we put 2 in variable 'j', it doesn't produce any value
+ * j = j + 109 is statement that containt expression
+ */
 static void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
-    } else {
+    } else if (match(TOKEN_LEFT_BRACE)) {
+        begin_scope();
+        code_block();
+        end_scope();
+    }
+    else {
         expression_statement();
     }
+}
+
+static void code_block() {
+  while (!check_type(TOKEN_RIGHT_BRACE) && !check_type(TOKEN_EOF)) {
+      declaration();
+  }
+  consume_token(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
 static void synchronize_error() {
@@ -191,6 +274,7 @@ static void synchronize_error() {
                 return;
 
             default:
+                break;
                 // yeah
 
         }
@@ -292,7 +376,17 @@ static void parse_literal(bool can_assign) {
     }
 }
 
+static void mark_var_initialized() {
+    current_compiler->locals[current_compiler->local_count - 1].depth 
+        = current_compiler->scope_depth;
+}
+
 static void define_var(uint8_t global) {
+    /* Local var is in the stack where as Global is in the Global's hash table, that's why we do nothing here */
+    if (current_compiler->scope_depth > 0) {
+        mark_var_initialized();
+        return;
+    }
     emit_bytes(OP_DEFINE_GLOBAL, global);
 }
 
@@ -308,6 +402,10 @@ static uint8_t identifier_constant(Token *name) {
 
 static uint8_t parse_var_token(const char *err_msg) {
     consume_token(TOKEN_IDENTIFIER, err_msg);
+    declare_var();
+    if (current_compiler->scope_depth > 0) {
+        return 0;
+    }
     return identifier_constant(&parser.previous); // why previous? because the current is semicolon
 }
 
@@ -319,19 +417,46 @@ static void parse_string(bool can_assign) {
                     parser.previous.length - 2)));
 }
 
-static void named_var(Token name, bool can_assign) {
-  uint8_t arg = identifier_constant(&name);
-  /* In the parse function for identifier expressions, 
-   * we look for an equals sign after the identifier. 
-   * If we find one, instead of emitting code for a variable access, 
-   * we compile the assigned value and then emit an assignment instruction. */
+static int resolve_local(Compiler *compiler, Token *name) {
+    /* Walk the list of locals that are currently in scope. If one has the same name as the identifier token, 
+     * the identifier refer to that var */
+    for (int i = compiler->local_count - 1; i >= 0; i--) {
+        Local *local = &compiler->locals[i];
+        if (is_identifier_equal(name, &local->name)) {
+            if (local->depth == -1) {
+                error_at("Can't read local variable in its own initializer.", false); // XXX: i dont understand this
+            }
+            return i;
+        }
+    }
 
-  if (can_assign && match(TOKEN_EQUAL)) {
-      expression();
-      emit_bytes(OP_SET_GLOBAL, arg);
-  } else {
-      emit_bytes(OP_GET_GLOBAL, arg);
-  }
+    return -1;
+}
+
+
+static void named_var(Token name, bool can_assign) {
+    uint8_t get_op;
+    uint8_t set_op;
+    int arg = resolve_local(current_compiler, &name);
+    if (arg != -1) {
+        get_op = OP_GET_LOCAL;
+        set_op = OP_SET_LOCAL;
+    } else {
+        arg = identifier_constant(&name);
+        get_op = OP_GET_GLOBAL;
+        set_op = OP_SET_GLOBAL;
+    }
+    /* In the parse function for identifier expressions, 
+     * we look for an equals sign after the identifier. 
+     * If we find one, instead of emitting code for a variable access, 
+     * we compile the assigned value and then emit an assignment instruction. */
+
+    if (can_assign && match(TOKEN_EQUAL)) {
+        expression();
+        emit_bytes(set_op, (uint8_t) arg);
+    } else {
+        emit_bytes(get_op, (uint8_t) arg);
+    }
 
 }
 
@@ -393,8 +518,16 @@ static void end_compile() {
 #endif
 }
 
+static void init_compiler(Compiler *compiler) {
+    compiler->local_count = 0;
+    compiler->scope_depth = 0;
+    current_compiler = compiler;
+}
+
 bool compile(const char *src, Chunk *chunk) {
     init_scanner(src);
+    Compiler compiler;
+    init_compiler(&compiler);
     compile_chunk = chunk;
     parser.is_error = false;
     parser.panic_mode = false;

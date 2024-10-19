@@ -275,10 +275,20 @@ static InterpretResult run() {
                                 break;
                             }
 
-        case OP_RETURN: { 
-                          // EXIT
-                            return INTERPRET_OK;
-                        }
+        case OP_GET_LOCAL: {
+                               uint8_t slot = READ_BYTE();
+                               push(vm.stack[slot]); 
+                               break;
+                           }
+
+        case OP_SET_LOCAL: {
+                               uint8_t slot = READ_BYTE();
+                               vm.stack[slot] = peek(0); // add current local var to onto stack
+                               break;
+                           }
+
+        case OP_RETURN: 
+                           return INTERPRET_OK;
     }
 
     return INTERPRET_OK;
