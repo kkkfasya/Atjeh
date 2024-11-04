@@ -20,7 +20,7 @@ static bool is_falsey(Value value);
 static void print_stack_value(Value value); 
 static void concat_str(); 
 static InterpretResult run(); 
- 
+
 // Turns out, making this dynamic serve zero benefits (AFAIK)
 VM vm; // i only need 1 VM so instead of passing pointer here and there, just make a global variable
 
@@ -101,7 +101,7 @@ static void print_stack_value(Value value) {
 static void concat_str() {
     ObjString *a = GET_STRING_PTR(pop());
     ObjString *b = GET_STRING_PTR(pop());
-    
+
     int len = a->len + b->len;
     char *str = ALLOCATE(char, len + 1); // once again, +1, sweet null terminator
 
@@ -114,20 +114,22 @@ static void concat_str() {
      * 0x5 == [a->str] <= b->str
      * 0x5 == [a->str+b->str] 
      */
-    
+
     memcpy(str, a->str, a->len);
     memcpy(str + a->len, b->str, b->len);
 
     // 0x11 == ['\0']
     str[len] = '\0';
-    
+
     ObjString *result = take_string(str, len);
     push(OBJ_VAL(result));
 }
 
 
 static InterpretResult run() {
-#define READ_BYTE() (*vm.ip++) // point to next bytecode/instruction
+#define READ_BYTE() (*vm.ip++) // point to next opcode/instruction, then get the opcode
+#define READ_SHORT() \
+    (vm.ip += 2, (uint16_t) ((vm.ip[-2] << 8) | vm.ip[-1])) // HACK: what the fuck?
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 #define READ_STRING() GET_STRING_PTR(READ_CONSTANT())
 #define BINARY_OP(value_type, op) \
@@ -175,16 +177,16 @@ static InterpretResult run() {
         case OP_POP: pop(); break;
 
         case OP_NIL:
-                          push(NIL_VAL); 
-                          break;
+                     push(NIL_VAL); 
+                     break;
 
         case OP_TRUE:
-                          push(BOOL_VAL(true)); 
-                          break;
+                     push(BOOL_VAL(true)); 
+                     break;
 
         case OP_FALSE:
-                          push(BOOL_VAL(false));
-                          break;
+                     push(BOOL_VAL(false));
+                     break;
 
         case OP_ADD: {
                          if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
@@ -203,16 +205,16 @@ static InterpretResult run() {
 
 
         case OP_SUBTRACT:
-                          BINARY_OP(NUMBER_VAL, -);
-                          break;
+                     BINARY_OP(NUMBER_VAL, -);
+                     break;
 
         case OP_MULTIPLY:
-                          BINARY_OP(NUMBER_VAL, *);
-                          break;
+                     BINARY_OP(NUMBER_VAL, *);
+                     break;
 
         case OP_DIVIDE:
-                          BINARY_OP(NUMBER_VAL, /);
-                          break;
+                     BINARY_OP(NUMBER_VAL, /);
+                     break;
 
         case OP_NEGATE: {
                             if (!IS_NUMBER(peek(0))) {
@@ -286,9 +288,26 @@ static InterpretResult run() {
                                vm.stack[slot] = peek(0); // add current local var to onto stack
                                break;
                            }
+        case OP_JUMP_IF_FALSE: {
+                                   uint16_t offset = READ_SHORT();
+                                   if (is_falsey(peek(0))) vm.ip += offset;
+                                   break;
+                               }
+        case OP_JUMP: {
+                          uint16_t offset = READ_SHORT();
+                          vm.ip += offset;
+                          break;
+                      }
+
+        case OP_LOOP: {
+
+                          uint16_t offset = READ_SHORT();
+                          vm.ip -= offset;
+                          break;
+                      }
 
         case OP_RETURN: 
-                           return INTERPRET_OK;
+                      return INTERPRET_OK;
     }
 
     return INTERPRET_OK;
@@ -296,6 +315,7 @@ static InterpretResult run() {
 #undef READ_STRING
 #undef READ_CONSTANT
 #undef BINARY_OP
+#undef READ_SHORT
 }
 
 

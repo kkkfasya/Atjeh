@@ -11,11 +11,21 @@ int disassemble_constant_instruction(Chunk *chunk, int offset) {
     printf("'\n");
     return offset + 2; // 1 for the OP_CONSTANT and another 1 for the constant (so +2)
 }
+
 static int disassemble_byte_instruction(const char *name, Chunk *chunk,
         int offset) {
     uint8_t slot = chunk->code[offset + 1];
     printf("%-16s %4d\n", name, slot);
     return offset + 2; 
+}
+
+// HACK: what the fuck
+static int disassemble_jump_instruction(const char *name, int sign, Chunk *chunk, int offset) {
+    uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
+    jump |= chunk->code[offset + 2];
+    printf("%-16s %4d -> %d\n", name, offset,
+            offset + 3 + sign * jump);
+    return offset + 3;
 }
 
 int disassemble_instruction(Chunk *chunk, int offset) {
@@ -111,6 +121,15 @@ int disassemble_instruction(Chunk *chunk, int offset) {
 
     case OP_SET_LOCAL:
             return disassemble_byte_instruction("OP_SET_LOCAL", chunk, offset);
+
+    case OP_JUMP:
+            return disassemble_jump_instruction("OP_JUMP", 1, chunk, offset);
+
+    case OP_JUMP_IF_FALSE:
+            return disassemble_jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+
+    case OP_LOOP:
+            return disassemble_jump_instruction("OP_LOOP", -1, chunk, offset);
 
         default:
             fprintf(stderr, "[ERROR]: Unkown OP_CODE (Operation Code)\n");

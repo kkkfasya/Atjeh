@@ -18,6 +18,7 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2);
 static void emit_return();
 static uint8_t make_constant(Value value);
 static void emit_constant(Value value);
+static void emit_loop(int loop_start);
 
 static Chunk *current_chunk();
 
@@ -27,6 +28,8 @@ static void parse_literal(bool can_assign);
 static void parse_unary(bool can_assign);
 static void parse_binary_op(bool can_assign);
 static void paren_grouping(bool can_assign);
+static void parse_and(bool can_assign);
+static void parse_or(bool can_assign);
 
 static void error(Token *token, const char *msg);
 static void error_at(const char*, bool);
@@ -39,6 +42,8 @@ static void declaration();
 static void statement();
 static void print_statement();
 static void expression_statement();
+static void while_statement();
+static void for_statement();
 
 static void code_block();
 static void begin_scope();
@@ -53,6 +58,10 @@ static void named_var(Token name, bool can_assign);
 static void add_local(Token name);
 static void declare_var(); // HOLY FUCK THIS BOOK SUCKS (it was free tho so no problem)
 static bool is_identifier_equal(Token *a, Token *b);
+
+static int emit_jump(uint8_t instruction);
+static void if_statement();
+static void patch_jump(int offset);
 
 static void end_compile();
 static void init_compiler(Compiler *compiler);
@@ -89,6 +98,29 @@ static void error_at(const char *msg, bool is_current) {
     is_current ? error(&parser.current, msg) : error(&parser.previous, msg);
 }
 
+static void parse_and(bool can_assign) {
+    /* AND and OR is short-circuit 
+     * it basically evaluated the condition on the left
+     * for AND, if the left is false then it will be automatically false, it doens't care what's 
+     * on the right anymore, i think this also called lazy eval, it saves time, memory */
+
+    int end_jump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_AND);
+    patch_jump(end_jump);
+}
+
+static void parse_or(bool can_assign) {
+    int else_jump = emit_jump(OP_JUMP_IF_FALSE);
+    int end_jump = emit_jump(OP_JUMP);
+
+    patch_jump(else_jump); // see? if left side is false we jump to check the right side
+    emit_byte(OP_POP);
+
+    parse_precedence(PREC_OR); // but if it is true we just fucking jump outta the ceiling fuck im so tired of this bullshit project
+    patch_jump(end_jump);
+
+}
 
 static void parse_token() { // NOTE: advance(); delete later
     parser.previous = parser.current;
@@ -224,11 +256,125 @@ static void expression_statement() {
     emit_byte(OP_POP);
 }
 
+static void while_statement() {
+    int loop_start = current_chunk()->used_count;
+
+    consume_token(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+    expression();
+    consume_token(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+    int exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_POP);
+    statement();
+    emit_loop(loop_start);
+
+    patch_jump(exit_jump);
+    emit_byte(OP_POP);
+}
+
+static void for_statement() {
+    // BUG: this doesn't work yet but for loop is just syntatic sugar anyway so whatever
+    begin_scope();
+    consume_token(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+
+    if (match(TOKEN_SEMICOLON)) {
+        // No initializer
+    } else if (match(TOKEN_VAR)) {
+        var_declaration();
+    } else {
+        expression_statement();
+    }
+
+    consume_token(TOKEN_SEMICOLON, "Expect ';'.");
+
+    int loop_start = current_chunk()->used_count;
+    int exit_jump = -1;
+
+    if (!match(TOKEN_SEMICOLON)) {
+        expression();
+        consume_token(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+
+        // Jump out of the loop if the condition is false.
+        exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+        emit_byte(OP_POP); // Condition.
+    }
+
+    consume_token(TOKEN_SEMICOLON, "Expect ';'.");
+
+
+    if (!match(TOKEN_RIGHT_PAREN)) {
+        int body_jump = emit_jump(OP_JUMP);
+        int increment_start = current_chunk()->used_count;
+        expression();
+        emit_byte(OP_POP);
+        consume_token(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+        emit_loop(loop_start);
+        loop_start = increment_start;
+        patch_jump(body_jump);
+    }
+
+
+    statement();
+    emit_loop(loop_start);
+
+    if (exit_jump != -1) {
+        patch_jump(exit_jump);
+        emit_byte(OP_POP); // Condition.
+    }
+
+    end_scope();
+}
+
 static void print_statement() {
     expression();
     consume_token(TOKEN_SEMICOLON, "Expect ';' after value.");
     emit_byte(OP_PRINT);
 }
+
+static int emit_jump(uint8_t instruction) {
+    /* emit the jump instruction first with a placeholder offset operand (2 bytes). 
+     * We keep track of where that half-finished instruction is. 
+     * Next, we compile the then body. Once that’s done, we know how far to jump. 
+     * So we go back and replace that placeholder offset with the real one now that we can calculate it. */
+
+    emit_byte(instruction);
+    emit_byte(0xff); // NOTE: 0xff = 255, 1 byte, 8 bit, 
+    emit_byte(0xff); // we skip 2 bytes
+    return current_chunk()->used_count - 2;
+}
+
+static void patch_jump(int offset) {
+    // -2 to adjust for the bytecode for the jump offset itself.
+    int jump = current_chunk()->used_count - offset - 2;
+
+    if (jump > UINT16_MAX) {
+        error_at("Too much code to jump over.", false);
+    }
+
+    current_chunk()->code[offset] = (jump >> 8) & 0xff;
+    current_chunk()->code[offset + 1] = jump & 0xff;
+}
+
+static void if_statement() {
+    consume_token(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+    expression();
+    consume_token(TOKEN_RIGHT_PAREN, "Expect ')' after condition."); 
+
+    int then_jump = emit_jump(OP_JUMP_IF_FALSE); // use backpatching
+    emit_byte(OP_POP); // if true, pop before then jump
+    statement();
+
+    int else_jump = emit_jump(OP_JUMP);
+    patch_jump(then_jump);
+
+    emit_byte(OP_POP); // if false, pop at the beginning of else jump
+    if (match(TOKEN_ELSE)) statement();
+    patch_jump(else_jump);
+}
+
+
+
 
 /* An expression is something, 
  * while a statement does something.
@@ -245,6 +391,12 @@ static void statement() {
         begin_scope();
         code_block();
         end_scope();
+    } else if (match(TOKEN_IF)) {
+        if_statement();
+    } else if (match(TOKEN_WHILE)) {
+        while_statement();
+    } else if (match(TOKEN_FOR)) {
+        for_statement();
     }
     else {
         expression_statement();
@@ -381,6 +533,16 @@ static void mark_var_initialized() {
         = current_compiler->scope_depth;
 }
 
+static void emit_loop(int loop_start) {
+    emit_byte(OP_LOOP);
+
+    int offset = current_chunk()->used_count - loop_start + 2;
+    if (offset > UINT16_MAX) error_at("Loop body too large.", false);
+
+    emit_byte((offset >> 8) & 0xff);
+    emit_byte(offset & 0xff);
+}
+
 static void define_var(uint8_t global) {
     /* Local var is in the stack where as Global is in the Global's hash table, that's why we do nothing here */
     if (current_compiler->scope_depth > 0) {
@@ -484,17 +646,17 @@ ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
     [TOKEN_GREATER_EQUAL] = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_LESS]          = {NULL,           parse_binary_op,   PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]    = {NULL,           parse_binary_op,   PREC_COMPARISON},
-    [TOKEN_IDENTIFIER]    = {parse_var_identifier,           NULL,              PREC_NONE},
-    [TOKEN_STRING]        = {parse_string,           NULL,              PREC_NONE},
+    [TOKEN_IDENTIFIER]    = {parse_var_identifier,   NULL,      PREC_NONE},
+    [TOKEN_STRING]        = {parse_string,           NULL,      PREC_NONE},
     [TOKEN_NUMBER]        = {parse_constant, NULL,              PREC_NONE},
-    [TOKEN_AND]           = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_AND]           = {NULL,           parse_and,         PREC_AND}, 
     [TOKEN_ELSE]          = {NULL,           NULL,              PREC_NONE},
     [TOKEN_FALSE]         = {parse_literal,  NULL,              PREC_NONE},
     [TOKEN_FOR]           = {NULL,           NULL,              PREC_NONE},
     [TOKEN_FUNC]          = {NULL,           NULL,              PREC_NONE},
     [TOKEN_IF]            = {NULL,           NULL,              PREC_NONE},
     [TOKEN_NIL]           = {parse_literal,  NULL,              PREC_NONE},
-    [TOKEN_OR]            = {NULL,           NULL,              PREC_NONE},
+    [TOKEN_OR]            = {NULL,           parse_or,          PREC_OR},
     [TOKEN_PRINT]         = {NULL,           NULL,              PREC_NONE},
     [TOKEN_RETURN]        = {NULL,           NULL,              PREC_NONE},
     [TOKEN_TRUE]          = {parse_literal,  NULL,              PREC_NONE},
