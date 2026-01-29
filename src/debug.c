@@ -131,6 +131,9 @@ int disassemble_instruction(Chunk *chunk, int offset) {
     case OP_LOOP:
             return disassemble_jump_instruction("OP_LOOP", -1, chunk, offset);
 
+    case OP_CALL:
+            return disassemble_byte_instruction("OP_LOOP", chunk, offset);
+
         default:
             fprintf(stderr, "[ERROR]: Unkown OP_CODE (Operation Code)\n");
             return offset + 1;

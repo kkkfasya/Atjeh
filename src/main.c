@@ -1,4 +1,5 @@
-// TODO: change int to int32_t, and such when it all works
+// TODO: dont try to understand shit, just finish this hell then refactor it, il'l understand it later on anyway
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "chunk.h"
+#include "object.h"
 #include "scanner.h"
 
 typedef struct {
@@ -17,9 +18,18 @@ typedef struct {
     int depth; // number variables with the level of nesting where they appear. Zero is the global scope, one is the first top-level block, two is inside that, and so on
 } Local;
 
+typedef enum {
+  TYPE_FUNCTION,
+  TYPE_SCRIPT
+} FunctionType;
+
 // TODO: change to LocalTracker
-typedef struct {
-    Local locals[UINT8_MAX]; // TODO: Do we need UINT8_MAX + 1? wtf is this book
+typedef struct Compiler {
+    struct Compiler *enclosing;
+    ObjFunction *function;
+    FunctionType type;
+
+    Local locals[UINT8_MAX + 1]; // YES WE NEED THE +1 FORGIVE MY EGO
     int local_count;
     int scope_depth; // scope depth currently in
 } Compiler; // keep track of local var and its scope 
@@ -50,7 +60,7 @@ typedef struct {
 #define MAX_LOCAL_VAR 256
 
 /* One-pass compiler*/
-bool compile(const char *src, Chunk *chunk);
+ObjFunction *compile(const char *src);
 ParseRule *get_rule(TokenType type);
 
 #endif // ATJEH_COMPILER_H

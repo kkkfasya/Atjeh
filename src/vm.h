@@ -1,12 +1,24 @@
 #ifndef ATJEH_VM_H
 #define ATJEH_VM_H
 #include "chunk.h"
+#include "object.h"
 #include "value.h"
 #include "table.h"
 
-#define STACK_MAX_SIZE 1024
+#define FRAME_MAX_SIZE 64
+#define STACK_MAX_SIZE (FRAME_MAX_SIZE * UINT8_MAX)
 
 typedef struct {
+    ObjFunction *function;
+    uint8_t *ip;
+    Value *slots; // points to VM's Value Stack at the first slot it can use
+} CallFrame; // CallFrame represents a single ongoing function call
+
+
+typedef struct {
+    CallFrame frames[FRAME_MAX_SIZE];
+    int frame_count;
+
     Chunk *chunk;
     uint8_t *ip; // instruction pointer, this is to keep track the location of the instruction currently executed
     Value stack[STACK_MAX_SIZE];

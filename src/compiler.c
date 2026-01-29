@@ -38,12 +38,16 @@ static bool check_type(TokenType type);
 static bool match(TokenType type);
 static void expression();
 static void declaration();
+static void func_declaration();
+static void compile_function(FunctionType type);
 
 static void statement();
 static void print_statement();
 static void expression_statement();
 static void while_statement();
 static void for_statement();
+static void return_statement();
+
 
 static void code_block();
 static void begin_scope();
@@ -56,15 +60,18 @@ static void define_var(uint8_t global);
 static void parse_var_identifier(bool can_assign);
 static void named_var(Token name, bool can_assign);
 static void add_local(Token name);
-static void declare_var(); // HOLY FUCK THIS BOOK SUCKS (it was free tho so no problem)
+static void declare_var(); // HOLY FUCK THIS BOOK CONFUSING (it is free tho so no problem)
 static bool is_identifier_equal(Token *a, Token *b);
+static void mark_initialized();
+static void func_call(bool can_assign);
+static uint8_t args_list();
 
 static int emit_jump(uint8_t instruction);
 static void if_statement();
 static void patch_jump(int offset);
 
-static void end_compile();
-static void init_compiler(Compiler *compiler);
+static ObjFunction *end_compiler();
+static void init_compiler(Compiler *compiler, FunctionType type);
 
 Parser parser;
 Chunk *compile_chunk = NULL;
@@ -84,6 +91,23 @@ static void error(Token *token, const char *msg) {
     fprintf(stderr, ": %s\n", msg);
     parser.is_error = true;
 }
+
+/* Basically look through expression until ')', and TOKEN_COMMA as separator of each args*/
+static uint8_t args_list() {
+    uint8_t arg_count = 0;
+    if (!check_type(TOKEN_RIGHT_PAREN)) {
+        do {
+            expression();
+            if (arg_count == 255) {
+                error_at("Can't have more than 255 arguments.", false);
+            }
+            arg_count++;
+        } while (match(TOKEN_COMMA));
+    }
+    consume_token(TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+    return arg_count;
+}
+
 
 static bool is_identifier_equal(Token *a, Token *b) {
     if (a->length != b->length) return false;
@@ -204,8 +228,9 @@ static void parse_precedence(Precedence precedence) {
     }
 }
 
+// The current chunk is always the chunk owned by the function we’re in the middle of compiling
 static Chunk *current_chunk() {
-    return compile_chunk;
+    return &current_compiler->function->chunk;
 }
 
 static void emit_byte(uint8_t byte) {
@@ -218,6 +243,7 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2) {
 }
 
 static void emit_return() {
+    emit_byte(OP_NIL);
     emit_byte(OP_RETURN);
 }
 
@@ -373,7 +399,20 @@ static void if_statement() {
     patch_jump(else_jump);
 }
 
+// BUG: fix here
+static void return_statement() {
+    if (current_compiler->type == TYPE_SCRIPT) {
+        error_at("Can't return from top-level code.", false);
+    }
 
+    if (match(TOKEN_SEMICOLON)) {
+        emit_return();
+    } else {
+        expression();
+        consume_token(TOKEN_SEMICOLON, "Expect ';' after return value.");
+        emit_byte(OP_RETURN);
+    }
+}
 
 
 /* An expression is something, 
@@ -393,6 +432,8 @@ static void statement() {
         end_scope();
     } else if (match(TOKEN_IF)) {
         if_statement();
+    } else if (match(TOKEN_RETURN)) {
+        return_statement();
     } else if (match(TOKEN_WHILE)) {
         while_statement();
     } else if (match(TOKEN_FOR)) {
@@ -403,11 +444,12 @@ static void statement() {
     }
 }
 
+// BUG: fix here
 static void code_block() {
-  while (!check_type(TOKEN_RIGHT_BRACE) && !check_type(TOKEN_EOF)) {
-      declaration();
-  }
-  consume_token(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+    while (!check_type(TOKEN_RIGHT_BRACE) && !check_type(TOKEN_EOF)) {
+        declaration();
+    }
+    consume_token(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
 static void synchronize_error() {
@@ -434,12 +476,22 @@ static void synchronize_error() {
     }
 }
 
+static void func_declaration() {
+    uint8_t global = parse_var_token("Expect function name.");
+    mark_initialized();
+    compile_function(TYPE_FUNCTION); // huh?
+    define_var(global);
+}
+
 static void declaration() {
-    if (match(TOKEN_VAR)) {
+    if (match(TOKEN_FUNC)) {
+        func_declaration();
+    } else if (match(TOKEN_VAR)) {
         var_declaration();
     } else {
         statement();
     }
+
     if (parser.panic_mode) synchronize_error();
 }
 
@@ -528,7 +580,35 @@ static void parse_literal(bool can_assign) {
     }
 }
 
-static void mark_var_initialized() {
+static void compile_function(FunctionType type) {
+    Compiler compiler;
+    init_compiler(&compiler, type);
+    begin_scope(); 
+
+    consume_token(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+
+    if (!check_type(TOKEN_RIGHT_PAREN)) {
+        do {
+            current_compiler->function->arity++;
+            if (current_compiler->function->arity > 255) {
+                error_at("Can't have more than 255 parameters.", true);
+            }
+            uint8_t constant = parse_var_token("Expect parameter name.");
+            define_var(constant);
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume_token(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    consume_token(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+    code_block();
+
+    ObjFunction *function = end_compiler();
+    emit_bytes(OP_CONSTANT, make_constant(OBJ_VAL(function)));
+}
+
+
+static void mark_initialized() {
+    if (current_compiler->scope_depth == 0) return;
     current_compiler->locals[current_compiler->local_count - 1].depth 
         = current_compiler->scope_depth;
 }
@@ -546,7 +626,7 @@ static void emit_loop(int loop_start) {
 static void define_var(uint8_t global) {
     /* Local var is in the stack where as Global is in the Global's hash table, that's why we do nothing here */
     if (current_compiler->scope_depth > 0) {
-        mark_var_initialized();
+        mark_initialized();
         return;
     }
     emit_bytes(OP_DEFINE_GLOBAL, global);
@@ -622,12 +702,21 @@ static void named_var(Token name, bool can_assign) {
 
 }
 
+// static uint8_t arg_list() {
+//
+// }
+
+static void func_call(bool can_assign) {
+  uint8_t arg_count = args_list();
+  emit_bytes(OP_CALL, arg_count);
+}
+
 static void parse_var_identifier(bool can_assign) { // NOTE: variable, delete later
     named_var(parser.previous, can_assign);
 }
 
 ParseRule rules[] = {   /*  prefix           |   infix      |   precedence */
-    [TOKEN_LEFT_PAREN]    = {paren_grouping, NULL,              PREC_NONE},
+    [TOKEN_LEFT_PAREN]    = {paren_grouping, func_call,              PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,           NULL,              PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {NULL,           NULL,              PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,           NULL,              PREC_NONE},
@@ -670,27 +759,46 @@ ParseRule *get_rule(TokenType type) {
     return &rules[type];
 }
 
-static void end_compile() {
+static ObjFunction *end_compiler() {
     emit_return();
+    ObjFunction *function = current_compiler->function;
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
+    // User-defined functions have names, but the implicit function we create for the top-level code doesn't
     if (!parser.is_error) {
-        disassemble_chunk(current_chunk(), "DEBUG CODE");
+        disassemble_chunk(current_chunk(), function->name != NULL
+                ? function->name->str : "<script>");
     }
 #endif
+    current_compiler = current_compiler->enclosing;
+    return function;
 }
 
-static void init_compiler(Compiler *compiler) {
+static void init_compiler(Compiler *compiler, FunctionType type) {
+    compiler->enclosing = current_compiler;
+    compiler->function = NULL;
+    compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
+    compiler->function = new_function();
+
+    if (type != TYPE_SCRIPT) {
+        current_compiler->function->name = copy_string(parser.previous.start, parser.previous.length);
+    }
+
     current_compiler = compiler;
+
+    Local* local = &current_compiler->locals[current_compiler->local_count++];
+    local->depth = 0;
+    local->name.start = "";
+    local->name.length = 0;
 }
 
-bool compile(const char *src, Chunk *chunk) {
+ObjFunction *compile(const char *src) {
     init_scanner(src);
     Compiler compiler;
-    init_compiler(&compiler);
-    compile_chunk = chunk;
+    init_compiler(&compiler, TYPE_SCRIPT);
+
     parser.is_error = false;
     parser.panic_mode = false;
     parse_token();
@@ -698,6 +806,8 @@ bool compile(const char *src, Chunk *chunk) {
     while (!match(TOKEN_EOF)) {
         declaration();
     }
-    end_compile();
-    return !parser.is_error;
+
+    ObjFunction *function = end_compiler();
+    return parser.is_error ? NULL : function;
 }
+

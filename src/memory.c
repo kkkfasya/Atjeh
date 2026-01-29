@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "memory.h"
+#include "chunk.h"
 #include "object.h"
 #include "vm.h"
 
@@ -12,11 +13,11 @@ void *dynamic_realloc(void *ptr, size_t old_size, size_t new_size) {
         return NULL;
     }
     /*
-    else if (new_size < old_size) {
-        // TODO: shrink chunk
+       else if (new_size < old_size) {
+    // TODO: shrink chunk
     }
     else if (new_size > old_size) {
-        // TODO: make bigger chunk
+    // TODO: make bigger chunk
     }
     */
 
@@ -34,6 +35,18 @@ static void free_object(Obj *obj) {
                              FREE(ObjString, obj);
                              break;
                          }
+
+        case OBJ_FUNCTION: {
+                               ObjFunction *func = (ObjFunction *) obj;
+                               free_chunk(&func->chunk);
+                               FREE(ObjFunction, func);
+                               break;
+                           }
+        case OBJ_NATIVE: {
+                             FREE(ObjNative, obj);
+                             break;
+                         }
+
     }
 }
 

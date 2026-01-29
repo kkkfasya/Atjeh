@@ -32,6 +32,7 @@ typedef enum {
 
     OP_JUMP_IF_FALSE,
     OP_JUMP,
+    OP_CALL,
 
     OP_RETURN,
 } OP_CODE;
